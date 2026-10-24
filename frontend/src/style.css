@@ -361,3 +361,76 @@ footer {
     flex-direction: column;
   }
 }
+input,
+select,
+textarea {
+  font: inherit;
+  max-width: 100%;
+}
+select,
+input:not([type="file"]),
+textarea {
+  display: block;
+  width: 100%;
+  border: 1px solid #acbeb0;
+  border-radius: 5px;
+  padding: 10px 12px;
+  background: #fff;
+  color: #203c36;
+}
+select {
+  margin-top: 8px;
+}
+textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #b9872e;
+  outline-offset: 3px;
+}
+.project-paging,
+.future-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+.project-paging span {
+  font-size: 12px;
+}
+.project-context {
+  border-left: 4px solid #315b43;
+  padding: 16px 24px;
+  margin: 28px 0;
+  background: #e8efe5;
+  overflow-wrap: anywhere;
+}
+.module-section,
+.future {
+  padding: 28px;
+}
+.module-summary {
+  background: #f5f8f2;
+  margin-top: 20px;
+  padding: 20px;
+  border-radius: 6px;
+}
+.module-summary h3 {
+  font-size: 15px;
+}
+.module-section p,
+.future p {
+  font-size: 14px;
+  color: #52655a;
+}
+.validation-note {
+  display: block;
+  margin-top: 8px;
+}
+.upload > * { min-width: 0; }
+.badge {
+  white-space: normal;
+}

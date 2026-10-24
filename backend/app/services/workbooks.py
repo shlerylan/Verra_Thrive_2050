@@ -3,12 +3,13 @@ import re
 import stat
 import zipfile
 from pathlib import Path, PurePosixPath
-from uuid import uuid4
+from uuid import UUID, uuid4
 from defusedxml import ElementTree
 from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.workbook import Workbook
+from app.models.project import LEGACY_PROJECT_ID
 
 CONTENT_NS = "{http://schemas.openxmlformats.org/package/2006/content-types}"
 SHEET_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
@@ -85,7 +86,9 @@ def validate_package(path: Path, settings: Settings) -> None:
         raise AppError(400, "invalid_xlsx", "The file is not a supported, safe XLSX package or exceeds archive limits.") from exc
 
 
-def store_workbook(source, filename: str | None, session: Session, settings: Settings) -> Workbook:
+def store_workbook(source, filename: str | None, session: Session, settings: Settings, *,
+                   project_id: UUID = LEGACY_PROJECT_ID, module_id: str | None = None,
+                   module_version: str | None = None, file_role: str | None = None) -> Workbook:
     name = validate_filename(filename)
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
     stored_id = str(uuid4())
@@ -101,7 +104,8 @@ def store_workbook(source, filename: str | None, session: Session, settings: Set
                 digest.update(chunk)
                 target.write(chunk)
         validate_package(path, settings)
-        record = Workbook(original_filename=name, byte_size=size, sha256=digest.hexdigest(), stored_file_id=stored_id)
+        record = Workbook(original_filename=name, byte_size=size, sha256=digest.hexdigest(), stored_file_id=stored_id,
+                          project_id=project_id, module_id=module_id, module_version=module_version, file_role=file_role)
         session.add(record)
         session.flush()
         session.refresh(record)
