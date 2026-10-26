@@ -122,7 +122,9 @@ export function Workspace({
       if (input.current) input.current.value = "";
       await refresh(0);
       setSuccess(
-        `${stored.original_filename}: stored and basic XLSX checks completed. Domain-input validation has not been performed.`,
+        stored.template_validation === "passed"
+          ? `${stored.original_filename}: template ${stored.template_version} validated and stored. No carbon calculation has run.`
+          : `${stored.original_filename}: stored and basic XLSX checks completed. Domain-input validation has not been performed.`,
       );
     } catch (e) {
       setError(message(e));
@@ -136,6 +138,24 @@ export function Workspace({
     try {
       setSelected(await api.metadata(project.id, id));
       requestAnimationFrame(() => details.current?.focus());
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function downloadTemplate() {
+    if (!module || !module.template_version) return;
+    setBusy(true);
+    setError("");
+    try {
+      const blob = await api.downloadTemplate(project.id, module);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${module.identifier}-template-v${module.template_version}.xlsx`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (e) {
       setError(message(e));
     } finally {
@@ -237,7 +257,7 @@ export function Workspace({
       </section>
       <section className="card module-section" aria-labelledby="module-title">
         <p className="eyebrow">03 / MODULE</p>
-        <h2 id="module-title">Select a capability</h2>
+        <h2 id="module-title">Choose a module</h2>
         <p>
           Module versions are matched to the project's exact methodology
           version. Generic intake is a utility, not a methodology calculation.
@@ -323,6 +343,15 @@ export function Workspace({
                   . Expected outputs:{" "}
                   {module.expected_output_description ?? "Not defined"}.
                 </small>
+                {module.template_version && (
+                  <div className="template-action">
+                    <h3>Download the Excel template</h3>
+                    <p>Template version {module.template_version}. Add labelled values in the Inputs sheet, then upload it below as a completed intake template.</p>
+                    <button className="secondary" disabled={busy} onClick={() => void downloadTemplate()}>
+                      Download Excel template
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -330,12 +359,13 @@ export function Workspace({
       </section>
       <section className="card upload" aria-labelledby="upload-title">
         <div>
-          <p className="eyebrow">04 / WORKBOOK INTAKE</p>
-          <h2 id="upload-title">Preserve the original files</h2>
+          <p className="eyebrow">04 / UPLOAD</p>
+          <h2 id="upload-title">Upload the completed template or source workbook</h2>
           <p>
             Only .xlsx files. Successful storage includes basic XLSX package
             checks, not domain-input validation or calculation readiness.
           </p>
+          {module?.template_version && <p>Select “Completed intake template” to check template version and required cells before storage.</p>}
           <p>
             Destination: <strong>{project.name}</strong>
             {module && ` / ${module.name} ${module.version}`}
@@ -454,10 +484,10 @@ export function Workspace({
                     </td>
                     <td>
                       <span className="badge">
-                        Stored / basic XLSX checks completed
+                        {item.template_validation === "passed" ? "Template validated / stored" : "Stored / basic XLSX checks completed"}
                       </span>
                       <small className="validation-note">
-                        Domain inputs: not validated
+                        {item.template_validation === "passed" ? `Template ${item.template_version}; carbon inputs not validated` : "Domain inputs: not validated"}
                       </small>
                     </td>
                     <td>
@@ -522,6 +552,8 @@ export function Workspace({
               Storage: "Stored",
               "Package validation": "Basic XLSX checks completed",
               "Domain validation": "Not performed",
+              "Template version": selected.template_version ?? "Not applicable",
+              "Template validation": selected.template_validation ?? "Not performed",
             }).map(([label, value]) => (
               <React.Fragment key={label}>
                 <dt>{label}</dt>
@@ -532,11 +564,11 @@ export function Workspace({
         </section>
       )}
       <section className="card future" aria-labelledby="future-title">
-        <p className="eyebrow">05 / INPUTS, CALCULATION AND RESULTS</p>
+        <p className="eyebrow">05 / CALCULATION AND REPORT</p>
         <h2 id="future-title">Implementation boundary</h2>
         <p id="future-reason">
-          Input extraction, domain validation, calculation execution, and result
-          viewing/downloads are unavailable. No module in this milestone
+          Carbon input extraction, domain validation, calculation execution, and result
+          viewing/downloads are unavailable. Template layout validation is available for Workbook Intake. No module in this milestone
           implements these capabilities. Stored files are not calculation-ready.
         </p>
         <div className="future-actions">

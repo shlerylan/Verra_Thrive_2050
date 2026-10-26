@@ -6,6 +6,8 @@ const workbook = z.object({
   module_id: z.string().nullable(),
   module_version: z.string().nullable(),
   file_role: z.string().nullable(),
+  template_version: z.string().nullable(),
+  template_validation: z.literal("passed").nullable(),
   original_filename: z.string(),
   byte_size: z.number().int().nonnegative(),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -59,6 +61,7 @@ const moduleDefinition = z.object({
   adapter_id: z.string().nullable(),
   input_contract_version: z.string().nullable(),
   expected_output_description: z.string().nullable(),
+  template_version: z.string().nullable(),
 });
 const catalogue = z.object({
   methodologies: z.array(methodology),
@@ -76,11 +79,11 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     const error = z
-      .object({ error: z.object({ message: z.string() }) })
+      .object({ error: z.object({ message: z.string(), details: z.array(z.object({ cell: z.string(), message: z.string() })).optional() }) })
       .safeParse(payload);
     throw new Error(
       error.success
-        ? error.data.error.message
+        ? [error.data.error.message, ...(error.data.error.details ?? []).map((item) => `${item.cell}: ${item.message}`)].join(" ")
         : "The API request failed. Please try again.",
     );
   }
@@ -119,6 +122,13 @@ export const api = {
     ),
   modules: async (id: string) =>
     z.array(moduleDefinition).parse(await request(`/projects/${id}/modules`)),
+  downloadTemplate: async (projectId: string, module: ModuleDefinition) => {
+    const response = await fetch(`/api/projects/${projectId}/modules/${encodeURIComponent(module.identifier)}/${encodeURIComponent(module.version)}/template`, {
+      signal: AbortSignal.timeout(60000),
+    });
+    if (!response.ok) throw new Error("The template could not be downloaded. Please try again.");
+    return response.blob();
+  },
   list: async (projectId: string, offset: number) =>
     z
       .array(workbook)

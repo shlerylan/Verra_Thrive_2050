@@ -10,6 +10,7 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.workbook import Workbook
 from app.models.project import LEGACY_PROJECT_ID
+from app.services.templates import FILE_ROLE, MODULE_ID, MODULE_VERSION, TEMPLATE_VERSION, validate_intake_template
 
 CONTENT_NS = "{http://schemas.openxmlformats.org/package/2006/content-types}"
 SHEET_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
@@ -104,8 +105,13 @@ def store_workbook(source, filename: str | None, session: Session, settings: Set
                 digest.update(chunk)
                 target.write(chunk)
         validate_package(path, settings)
+        is_template = (module_id, module_version, file_role) == (MODULE_ID, MODULE_VERSION, FILE_ROLE)
+        if is_template:
+            validate_intake_template(path)
         record = Workbook(original_filename=name, byte_size=size, sha256=digest.hexdigest(), stored_file_id=stored_id,
-                          project_id=project_id, module_id=module_id, module_version=module_version, file_role=file_role)
+                          project_id=project_id, module_id=module_id, module_version=module_version, file_role=file_role,
+                          template_version=TEMPLATE_VERSION if is_template else None,
+                          template_validation="passed" if is_template else None)
         session.add(record)
         session.flush()
         session.refresh(record)

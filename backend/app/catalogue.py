@@ -41,6 +41,7 @@ class ModuleDefinition(BaseModel):
     adapter_id: str | None = None
     input_contract_version: str | None = None
     expected_output_description: str | None = None
+    template_version: str | None = None
 
     @model_validator(mode="after")
     def enforce_milestone_capabilities(self):
@@ -62,7 +63,10 @@ MODULES: tuple[ModuleDefinition, ...] = (
         kind="utility", availability="file_intake_only", methodology_independent=True,
         availability_reason="Storage and basic XLSX package checks only. Extraction, domain-input validation and calculation are not implemented.",
         file_roles=(FileRole(identifier="original-workbook", name="Original workbook",
-                            description="An optional original XLSX file for collection, not an official methodology requirement.", required=False),),
+                            description="An optional original XLSX file for collection, not an official methodology requirement.", required=False),
+                    FileRole(identifier="input-template", name="Completed intake template",
+                             description="The downloadable generic input template; layout and entries are checked on upload.", required=False)),
+        template_version="1.0.0",
     ),
 )
 

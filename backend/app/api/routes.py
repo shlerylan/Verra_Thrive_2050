@@ -1,5 +1,6 @@
 from uuid import UUID
 from fastapi import APIRouter, Depends, Form, Request, UploadFile
+from fastapi.responses import Response
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from app.core.errors import AppError
@@ -10,6 +11,7 @@ from app.models.project import LEGACY_PROJECT_ID, Project
 from app.services.projects import assign_methodology, create_project, get_project, validate_file_context
 from app import catalogue
 from app.services.workbooks import store_workbook
+from app.services.templates import MODULE_ID, MODULE_VERSION, workbook_intake_template
 
 router = APIRouter(prefix="/api")
 
@@ -92,6 +94,18 @@ def methodology(project_id: UUID, data: MethodologyAssignment, session: Session 
 def compatible_modules(project_id: UUID, session: Session = Depends(database_session)):
     project = get_project(session, project_id)
     return [module for module in catalogue.MODULES if catalogue.is_compatible(module, project)]
+
+
+@router.get("/projects/{project_id}/modules/{module_id}/{module_version}/template")
+def download_template(project_id: UUID, module_id: str, module_version: str,
+                      session: Session = Depends(database_session)):
+    project = get_project(session, project_id)
+    module = catalogue.require_module(project, module_id, module_version)
+    if module.template_version is None or (module_id, module_version) != (MODULE_ID, MODULE_VERSION):
+        raise AppError(404, "template_unavailable", "No downloadable template exists for this module version.")
+    return Response(content=workbook_intake_template(),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": 'attachment; filename="workbook-intake-template-v1.0.0.xlsx"'})
 
 
 @router.post("/projects/{project_id}/workbooks", response_model=WorkbookMetadata, status_code=201)

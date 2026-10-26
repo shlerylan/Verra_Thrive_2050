@@ -34,8 +34,8 @@ This is a modular monolith: one API process and one database, with a small stati
 | Methodology/version catalogue | Explicit `METHODOLOGIES` tuple in `catalogue.py`; initially empty |
 | Module definitions | `MODULES` tuple with stable ID/version, kind, availability, exact compatibility and file roles |
 | File storage and metadata | Existing streaming workbook service plus non-null project ownership |
-| Workbook-format adapters | Not implemented; catalogue adapter/input-contract fields remain null |
-| Input validation | Basic package checks only; domain validation explicitly not performed |
+| Workbook-format adapters | The Workbook Intake template has a versioned layout reader; carbon-workbook adapters are not implemented |
+| Input validation | Basic package checks for every upload; template version, layout, and required-cell checks for the completed intake template; carbon domain validation is not performed |
 | Calculation execution | Not implemented; HTTP boundary rejects requests, no execution engine |
 | Results/reporting | Not implemented; no unused result/run tables or fabricated records |
 
@@ -52,7 +52,7 @@ The browser has real loading, unavailable, empty, success, and error states. API
 ## Upload lifecycle
 
 1. Limit the raw HTTP request before multipart parsing can spool unlimited data. Starlette may temporarily spool accepted multipart data to the operating-system temporary directory.
-2. Resolve and lock the owning project, validate any exact module/version/file-role association and compatibility, then validate the original filename; generate a UUID for private storage independent of the name. Generic intake requires no module association. Defined roles describe only their code-configured module version.
+2. Resolve and lock the owning project, validate any exact module/version/file-role association and compatibility, then validate the original filename; generate a UUID for private storage independent of the name. Generic intake requires no module association. Defined roles describe only their code-configured module version. The completed intake template role checks the versioned Inputs layout before the metadata commit and returns cell-level errors when invalid.
 3. Stream bytes into storage in 64 KiB chunks, enforcing size and computing SHA-256.
 4. Inspect the ZIP in place without extraction. Bound member count, total expanded size, and per-member compression ratio; stream every member to verify CRC and actual sizes. Reject encryption, traversal, symlinks, duplicate members, malformed archives, known macro and embedded active content, and invalid required XML parts. Parse required XML with defusedxml to reject entity-based attacks.
 5. Flush and refresh the new metadata, then commit. Return `stored` only after commit. Handled failures roll back and remove the new file, including failures during database flush/commit. Separate uploads always have separate records/files.

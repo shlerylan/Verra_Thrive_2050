@@ -13,6 +13,7 @@ from app.core.config import Settings
 from app.db.session import make_database
 from app.main import create_app
 from app.models.project import LEGACY_PROJECT_ID
+from tests.test_templates import completed_template
 
 pytestmark = pytest.mark.skipif(not os.getenv("TEST_DATABASE_URL"), reason="TEST_DATABASE_URL is not configured")
 
@@ -150,3 +151,25 @@ def test_methodology_filtering_roles_and_unavailable_actions(client, package, mo
     monkeypatch.setattr(catalogue, "MODULES", (module,))
     unassigned = http.post("/api/projects", json={"name": "Unassigned"}).json()
     assert http.get(f'/api/projects/{unassigned["id"]}/modules').json() == []
+
+
+def test_download_fill_upload_template_and_reject_mismatch(client):
+    http, settings = client
+    project = http.post("/api/projects", json={"name": "Template review"}).json()
+    base = f'/api/projects/{project["id"]}'
+    template = http.get(base + "/modules/workbook-intake/1.0.0/template")
+    assert template.status_code == 200
+    assert template.headers["content-type"].startswith("application/vnd.openxmlformats")
+    context = {"module_id": "workbook-intake", "module_version": "1.0.0", "file_role": "input-template"}
+    invalid = http.post(base + "/workbooks", data=context,
+                        files={"file": ("empty.xlsx", template.content)})
+    assert invalid.status_code == 422
+    assert invalid.json()["error"]["details"][0]["cell"] == "Inputs!A7"
+    assert list(settings.upload_dir.iterdir()) == []
+    valid = http.post(base + "/workbooks", data=context,
+                      files={"file": ("filled.xlsx", completed_template())})
+    assert valid.status_code == 201, valid.text
+    assert valid.json()["template_version"] == "1.0.0"
+    assert valid.json()["template_validation"] == "passed"
+    assert valid.json()["domain_validation"] == "not_performed"
+    assert http.get(base + "/workbooks").json()[0]["template_validation"] == "passed"

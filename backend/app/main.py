@@ -48,7 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(AppError)
     async def application_error(request: Request, exc: AppError):
-        return JSONResponse(status_code=exc.status, content={"error": {"code": exc.code, "message": exc.message}})
+        return JSONResponse(status_code=exc.status, content={"error": {"code": exc.code, "message": exc.message, "details": exc.details}})
 
     @app.exception_handler(SQLAlchemyError)
     async def database_error(request: Request, exc: SQLAlchemyError):

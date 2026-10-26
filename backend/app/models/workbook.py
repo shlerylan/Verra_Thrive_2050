@@ -18,6 +18,8 @@ class Workbook(Base):
     module_id: Mapped[str | None] = mapped_column(String(100))
     module_version: Mapped[str | None] = mapped_column(String(64))
     file_role: Mapped[str | None] = mapped_column(String(100))
+    template_version: Mapped[str | None] = mapped_column(String(64))
+    template_validation: Mapped[str | None] = mapped_column(String(32))
     original_filename: Mapped[str] = mapped_column(String(255))
     byte_size: Mapped[int] = mapped_column(BigInteger)
     sha256: Mapped[str] = mapped_column(String(64))

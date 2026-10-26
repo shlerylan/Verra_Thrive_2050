@@ -1,5 +1,11 @@
 # Scaffold verification
 
+## Versioned intake template: 26 October 2026
+
+The Workbook Intake utility now serves a versioned XLSX template. Completed-template uploads check the exact module and template version, Inputs sheet, required headers, at least one field/value row, formula absence, and a 200-row limit. Rejected uploads return cell locations and leave no stored file. Accepted uploads retain their validation status and template version in PostgreSQL; migration `0003` preserves earlier records with null template fields.
+
+Checks: 40 applicable backend tests passed, including project and migration tests in isolated PostgreSQL schemas. The generated template opened, was edited and saved with openpyxl, then passed package and template validation. Six frontend component tests, TypeScript type checking, production Vite build, and `git diff --check` passed. The legacy PostgreSQL test that mutates the shared public schema was excluded. This milestone still has no carbon methodology or calculation report.
+
 ## Project-workflow milestone: 24 October 2026
 
 The project workflow extends the earlier scaffold. Checks below use real PostgreSQL 17 on the existing disposable, loopback-only cluster and Python 3.13.7. Backend checks were rerun after installing from the new `backend/uv.lock` with uv 0.13.5. The frontend uses portable Node 22.23.4; its newer test dependencies require Node 22.22.2+ (or the documented newer LTS line). The system Node 20 installation was not modified.

@@ -18,6 +18,7 @@ vi.mock("./api", () => ({
     list: vi.fn(),
     metadata: vi.fn(),
     upload: vi.fn(),
+    downloadTemplate: vi.fn(),
   },
 }));
 
@@ -47,11 +48,19 @@ const utility: ModuleDefinition = {
   adapter_id: null,
   input_contract_version: null,
   expected_output_description: null,
+  template_version: "1.0.0",
   file_roles: [
     {
       identifier: "original-workbook",
       name: "Original workbook",
       description: "Optional original.",
+      required: false,
+      permitted_formats: [".xlsx"],
+    },
+    {
+      identifier: "input-template",
+      name: "Completed intake template",
+      description: "Versioned intake template.",
       required: false,
       permitted_formats: [".xlsx"],
     },
@@ -63,6 +72,8 @@ const workbook: Workbook = {
   module_id: null,
   module_version: null,
   file_role: null,
+  template_version: null,
+  template_validation: null,
   original_filename: "alpha.xlsx",
   byte_size: 5,
   sha256: "a".repeat(64),
@@ -241,4 +252,31 @@ test("unavailable module explains its status and blocks file intake", async () =
       }) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
+});
+
+test("selected intake module offers its template and shows a validated upload", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.upload).mockResolvedValue({
+    ...workbook,
+    original_filename: "filled.xlsx",
+    module_id: utility.identifier,
+    module_version: utility.version,
+    file_role: "input-template",
+    template_version: "1.0.0",
+    template_validation: "passed",
+  });
+  render(<App />);
+  await screen.findByRole("option", { name: a.name });
+  await user.selectOptions(screen.getByLabelText("Project collection"), a.id);
+  await user.selectOptions(
+    screen.getByLabelText("Module version or generic project intake"),
+    JSON.stringify([utility.identifier, utility.version]),
+  );
+  expect(screen.getByRole("button", { name: "Download Excel template" })).toBeTruthy();
+  await user.selectOptions(screen.getByLabelText("File role"), "input-template");
+  const file = new File(["UI fixture only"], "filled.xlsx");
+  await user.upload(screen.getByLabelText("Excel workbook"), file);
+  await user.click(screen.getByRole("button", { name: "Upload to selected project" }));
+  await screen.findByText(/template 1.0.0 validated and stored/);
+  expect(api.upload).toHaveBeenCalledWith(a.id, file, utility, "input-template");
 });

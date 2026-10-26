@@ -11,6 +11,8 @@ class WorkbookMetadata(BaseModel):
     module_id: str | None
     module_version: str | None
     file_role: str | None
+    template_version: str | None
+    template_validation: Literal["passed"] | None
     original_filename: str
     byte_size: int
     sha256: str
