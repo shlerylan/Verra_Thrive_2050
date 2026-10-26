@@ -1,4 +1,4 @@
-﻿# Thrive 2050
+﻿# Qinren X Thrive 2050
 
 A local application for managing carbon projects and their Excel workbooks. Users can select a project and module, download a versioned Excel intake template, upload a completed template, and see validation feedback. Carbon calculations are not yet implemented.
 
