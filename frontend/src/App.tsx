@@ -85,47 +85,38 @@ export function App() {
           </span>
           Thrive <strong>2050</strong>
         </a>
-        <span className="review">LOCAL REVIEW / FOUNDATION</span>
+        <span role="status" className={`connection ${connection}`}>API {connection}</span>
       </header>
       <main>
-        <div className="intro">
+        {!project && <div className="intro">
           <div>
             <p className="eyebrow">PROJECT WORKSPACE</p>
-            <h1>From source files to traceable work.</h1>
+            <h1>Calculate agricultural leakage.</h1>
             <p className="lead">
-              Organize projects and preserve originals before implementing
-              calculations.
+              Select a project, then upload a sample workbook or your own Excel inputs.
             </p>
           </div>
-          <span role="status" className={`connection ${connection}`}>
-            API {connection}
-          </span>
-        </div>
+        </div>}
         <aside className="scope">
-          <strong>Current milestone:</strong> project management, explicit
-          catalogue context and workbook intake. No extraction, domain
-          validation, calculations or results are implemented.
+          <strong>Calculation preview.</strong> Project eligibility and input evidence require review before verified VCS reporting.
         </aside>
         {error && (
           <p role="alert" className="notice error">
             {error}
           </p>
         )}
-        <section className="card upload" aria-labelledby="projects-title">
+        {!project && <section className="card upload" aria-labelledby="projects-title">
           <div>
             <p className="eyebrow">01 / PROJECT</p>
             <h2 id="projects-title">Select your project</h2>
             <label htmlFor="project">Project collection</label>
             <select
               id="project"
-              value={project?.id ?? ""}
+              value=""
               disabled={loading || busy}
               onChange={(e) => void select(e.target.value)}
             >
               <option value="">Choose a project</option>
-              {project && !projects.some((item) => item.id === project.id) && (
-                <option value={project.id}>{project.name} (selected)</option>
-              )}
               {projects.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
@@ -187,12 +178,13 @@ export function App() {
               {busy ? "Please wait..." : "Create project"}
             </button>
           </form>
-        </section>
+        </section>}
         {project ? (
           <Workspace
             key={project.id}
             project={project}
             catalogue={catalogue}
+            onChangeProject={() => setProject(null)}
             onAssignment={(updated) =>
               setProject((current) =>
                 current?.id === updated.id ? updated : current,

@@ -5,8 +5,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-thrive}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copy .env.example to .env first}
       POSTGRES_DB: ${POSTGRES_DB:-thrive}
-    ports:
-      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

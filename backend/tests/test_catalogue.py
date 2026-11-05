@@ -8,12 +8,15 @@ from app.services.projects import validate_file_context
 
 
 def test_production_catalogue_makes_no_calculation_claims():
-    assert catalogue.METHODOLOGIES == ()
+    assert [(item.identifier, item.version) for item in catalogue.METHODOLOGIES] == [("VM0047", "1.0")]
     assert all(item.availability != "calculation_ready" for item in catalogue.MODULES)
     intake = catalogue.MODULES[0]
     assert intake.kind == "utility" and intake.adapter_id is None
     assert intake.input_contract_version is None
     assert intake.expected_output_description is None
+    pilot = catalogue.MODULES[1]
+    assert pilot.availability == "prototype_calculation"
+    assert pilot.compatible_methodologies[0].identifier == "VM0047"
 
 
 def test_compatibility_is_exact_and_not_based_on_module_name(monkeypatch):

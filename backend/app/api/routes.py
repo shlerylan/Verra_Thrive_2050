@@ -12,6 +12,8 @@ from app.services.projects import assign_methodology, create_project, get_projec
 from app import catalogue
 from app.services.workbooks import store_workbook
 from app.services.templates import MODULE_ID, MODULE_VERSION, workbook_intake_template
+from app.services import leakage
+from app.schemas.leakage import LeakagePreview, LeakagePreviewRequest
 
 router = APIRouter(prefix="/api")
 
@@ -98,14 +100,28 @@ def compatible_modules(project_id: UUID, session: Session = Depends(database_ses
 
 @router.get("/projects/{project_id}/modules/{module_id}/{module_version}/template")
 def download_template(project_id: UUID, module_id: str, module_version: str,
+                      example: bool = False, blank: bool = False,
                       session: Session = Depends(database_session)):
     project = get_project(session, project_id)
     module = catalogue.require_module(project, module_id, module_version)
-    if module.template_version is None or (module_id, module_version) != (MODULE_ID, MODULE_VERSION):
+    if module.template_version is None:
         raise AppError(404, "template_unavailable", "No downloadable template exists for this module version.")
-    return Response(content=workbook_intake_template(),
+    if (module_id, module_version) == (MODULE_ID, MODULE_VERSION):
+        if example or blank:
+            raise AppError(400, 'example_unavailable', 'No test example is available for this calculation.')
+        content, filename = workbook_intake_template(), "workbook-intake-template-v1.0.0.xlsx"
+    elif (module_id, module_version) == (leakage.MODULE_ID, leakage.MODULE_VERSION):
+        if example and blank:
+            raise AppError(400, "invalid_template_variant", "Choose either a blank template or a test example.")
+        content = leakage.leakage_template(example=example, blank=blank)
+        filename = f'leakage-{"synthetic-test-example" if example else "VCS5511-reference-template"}-v{leakage.TEMPLATE_VERSION}.xlsx'
+        if blank:
+            filename = f"leakage-blank-template-v{leakage.BLANK_VERSION}.xlsx"
+    else:
+        raise AppError(404, "template_unavailable", "No downloadable template exists for this module version.")
+    return Response(content=content,
                     media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    headers={"Content-Disposition": 'attachment; filename="workbook-intake-template-v1.0.0.xlsx"'})
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
 @router.post("/projects/{project_id}/workbooks", response_model=WorkbookMetadata, status_code=201)
@@ -141,6 +157,27 @@ def project_workbook_metadata(project_id: UUID, workbook_id: UUID, session: Sess
     if record is None:
         raise AppError(404, "not_found", "Workbook not found in this project.")
     return record
+
+
+@router.post("/projects/{project_id}/leakage/preview", response_model=LeakagePreview)
+def leakage_preview(project_id: UUID, data: LeakagePreviewRequest, request: Request,
+                    session: Session = Depends(database_session)):
+    project = get_project(session, project_id)
+    catalogue.require_module(project, leakage.MODULE_ID, leakage.MODULE_VERSION)
+    record = session.scalar(select(Workbook).where(Workbook.id == data.workbook_id,
+                                                   Workbook.project_id == project_id))
+    if record is None:
+        raise AppError(404, "not_found", "Workbook not found in this project.")
+    if ((record.module_id, record.module_version, record.file_role, record.template_validation)
+            != (leakage.MODULE_ID, leakage.MODULE_VERSION, leakage.FILE_ROLE, "passed")
+            or record.template_version not in (leakage.TEMPLATE_VERSION, leakage.BLANK_VERSION)):
+        raise AppError(409, "invalid_leakage_source", "Upload a validated Leakage template for this module version.")
+    path = request.app.state.settings.upload_dir / record.stored_file_id
+    if not path.is_file():
+        raise AppError(409, "source_missing", "The stored source workbook is unavailable.")
+    inputs = leakage.parse_leakage_template(path)
+    return {**leakage.calculate_leakage(inputs), "source_workbook_id": str(record.id),
+            "source_sha256": record.sha256}
 
 
 @router.post("/projects/{project_id}/inputs/review", status_code=409)

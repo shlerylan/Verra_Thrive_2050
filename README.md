@@ -1,6 +1,6 @@
 ﻿# Qinren X Thrive 2050
 
-A local application for managing carbon projects and their Excel workbooks. Users can select a project and module, download a versioned Excel intake template, upload a completed template, and see validation feedback. Carbon calculations are not yet implemented.
+A local application for managing carbon projects and their Excel workbooks. Users can select a project and module, download a versioned Excel template, upload completed inputs, and see validation feedback. A limited agricultural Leakage calculation preview is available; verified carbon calculations are not yet implemented.
 
 ## Tech Stack
 
@@ -24,13 +24,17 @@ Files belong to individual projects. Uploads undergo basic format checks, and th
 
 ## Current Features
 
+- Upload the Brazil Cerrado 1 sample or a completed template to compare annual production, land area and density, and explore leakage scenarios
+
+- Follow a step-by-step flow: project → methodology → calculation → Excel inputs → results, with back navigation and project file history
 - Create and select projects
 - Upload `.xlsx` files and view file metadata
-- Support methodology and version assignment; the methodology catalogue is currently empty
+- Assign VM0047 v1.0 to a project and select a compatible module
 - Select the Workbook Intake utility, download its English Excel template, and upload it for version, layout, and required-cell checks
 - Show cell-level errors for invalid templates and persist the version and validation status of accepted templates
+- Preview one-commodity agricultural Leakage arithmetic under VMD0054 v1.0 and download a text report
 
-Original workbooks can still be stored without the template. Template checks apply only when the **Completed intake template** file role is selected. This utility does not validate carbon data or produce calculations. Workbook previews, formula evaluation, carbon calculations, and calculation reports are not yet available.
+Original workbooks can still be stored without a template. The Leakage pilot validates its own input template and calculates an arithmetic preview; it does not verify source evidence or project eligibility. [Scope and limitations](docs/leakage-pilot.md). Workbook previews, formula evaluation, formal calculation runs, and verified reports are not yet available.
 
 ## Local Setup
 

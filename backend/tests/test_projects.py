@@ -14,6 +14,7 @@ from app.db.session import make_database
 from app.main import create_app
 from app.models.project import LEGACY_PROJECT_ID
 from tests.test_templates import completed_template
+from tests.test_leakage import filled_leakage_template
 
 pytestmark = pytest.mark.skipif(not os.getenv("TEST_DATABASE_URL"), reason="TEST_DATABASE_URL is not configured")
 
@@ -173,3 +174,38 @@ def test_download_fill_upload_template_and_reject_mismatch(client):
     assert valid.json()["template_validation"] == "passed"
     assert valid.json()["domain_validation"] == "not_performed"
     assert http.get(base + "/workbooks").json()[0]["template_validation"] == "passed"
+
+
+def test_leakage_preview_requires_matching_project_method_and_validated_template(client):
+    http, settings = client
+    project = http.post("/api/projects", json={"name": "Leakage pilot",
+        "methodology_id": "VM0047", "methodology_version": "1.0"}).json()
+    other = http.post("/api/projects", json={"name": "Other",
+        "methodology_id": "VM0047", "methodology_version": "1.0"}).json()
+    unassigned = http.post("/api/projects", json={"name": "Unassigned"}).json()
+    base = f'/api/projects/{project["id"]}'
+    template = http.get(base + "/modules/leakage-single-commodity/0.1.0/template")
+    assert template.status_code == 200
+    context = {"module_id": "leakage-single-commodity", "module_version": "0.1.0",
+               "file_role": "leakage-input-template"}
+    assert http.get(f'/api/projects/{unassigned["id"]}/modules/leakage-single-commodity/0.1.0/template').status_code == 409
+    assert http.post(f'/api/projects/{unassigned["id"]}/workbooks', data=context,
+                     files={"file": ("leakage.xlsx", filled_leakage_template())}).status_code == 409
+    empty = http.post(base + "/workbooks", data=context,
+                      files={"file": ("empty.xlsx", template.content)})
+    assert empty.status_code == 422
+    assert list(settings.upload_dir.iterdir()) == []
+    uploaded = http.post(base + "/workbooks", data=context,
+                         files={"file": ("leakage.xlsx", filled_leakage_template())})
+    assert uploaded.status_code == 201, uploaded.text
+    source = uploaded.json()
+    assert source["template_validation"] == "passed"
+    response = http.post(base + "/leakage/preview", json={"workbook_id": source["id"]})
+    assert response.status_code == 200, response.text
+    preview = response.json()
+    assert preview["status"] == "preview" and preview["annual_results"][0]["leakage_t_co2e"] == 0
+    assert preview["source_sha256"] == source["sha256"]
+    assert http.post(f'/api/projects/{other["id"]}/leakage/preview',
+                     json={"workbook_id": source["id"]}).status_code == 404
+    assert http.post(base + "/runs", json={"module_id": "leakage-single-commodity",
+                    "module_version": "0.1.0"}).status_code == 409

@@ -1,8 +1,15 @@
 import { z } from "zod";
 
+// Migration 0002 reserves this ID for preserved uploads. It is accepted by
+// PostgreSQL/Pydantic but predates the UUID version/variant rules used by Zod.
+const projectId = z.union([
+  z.string().uuid(),
+  z.literal("00000000-0000-0000-0000-000000000001"),
+]);
+
 const workbook = z.object({
   id: z.string().uuid(),
-  project_id: z.string().uuid(),
+  project_id: projectId,
   module_id: z.string().nullable(),
   module_version: z.string().nullable(),
   file_role: z.string().nullable(),
@@ -19,7 +26,7 @@ const workbook = z.object({
 export type Workbook = z.infer<typeof workbook>;
 
 const project = z.object({
-  id: z.string().uuid(),
+  id: projectId,
   name: z.string(),
   description: z.string(),
   methodology_id: z.string().nullable(),
@@ -42,6 +49,7 @@ const moduleDefinition = z.object({
   availability: z.enum([
     "unavailable",
     "file_intake_only",
+    "prototype_calculation",
     "calculation_ready",
   ]),
   availability_reason: z.string(),
@@ -70,6 +78,26 @@ const catalogue = z.object({
 export type Project = z.infer<typeof project>;
 export type ModuleDefinition = z.infer<typeof moduleDefinition>;
 export type Catalogue = z.infer<typeof catalogue>;
+
+const leakageYear = z.object({
+  year: z.number().int(), t: z.number().int(),
+  monitored_project_production: z.number(), monitored_mitigation_production: z.number(),
+  new_land_per_production_unit: z.number(),
+  baseline_project_production: z.number(), foregone_production: z.number(),
+  baseline_mitigation_production: z.number(), leakage_mitigation: z.number(),
+  production_subject_to_leakage: z.number(), new_land_area_ha: z.number(),
+  carbon_stock_change_t_c_per_ha: z.number(), leakage_t_co2e: z.number(),
+});
+const leakagePreview = z.object({
+  status: z.literal("preview"), methodology: z.string(), rule_module: z.string(),
+  scope: z.string(), commodity: z.string(), production_unit: z.string(),
+  historical_production: z.array(z.object({ year: z.number(), project: z.number(), mitigation: z.number() })),
+  project_area_ha: z.number().nullable(), mitigation_area_ha: z.number().nullable(), reference_replay: z.boolean(),
+  annual_results: z.array(leakageYear), total_leakage_t_co2e: z.number(),
+  limitations: z.array(z.string()), source_workbook_id: z.string().uuid(),
+  source_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+});
+export type LeakagePreview = z.infer<typeof leakagePreview>;
 
 async function request(path: string, init?: RequestInit): Promise<unknown> {
   const response = await fetch(`/api${path}`, {
@@ -122,8 +150,8 @@ export const api = {
     ),
   modules: async (id: string) =>
     z.array(moduleDefinition).parse(await request(`/projects/${id}/modules`)),
-  downloadTemplate: async (projectId: string, module: ModuleDefinition) => {
-    const response = await fetch(`/api/projects/${projectId}/modules/${encodeURIComponent(module.identifier)}/${encodeURIComponent(module.version)}/template`, {
+  downloadTemplate: async (projectId: string, module: ModuleDefinition, example = false, blank = false) => {
+    const response = await fetch(`/api/projects/${projectId}/modules/${encodeURIComponent(module.identifier)}/${encodeURIComponent(module.version)}/template${blank ? "?blank=true" : example ? "?example=true" : ""}`, {
       signal: AbortSignal.timeout(60000),
     });
     if (!response.ok) throw new Error("The template could not be downloaded. Please try again.");
@@ -139,6 +167,11 @@ export const api = {
       ),
   metadata: async (projectId: string, id: string) =>
     workbook.parse(await request(`/projects/${projectId}/workbooks/${id}`)),
+  previewLeakage: async (projectId: string, workbookId: string) =>
+    leakagePreview.parse(await request(`/projects/${projectId}/leakage/preview`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workbook_id: workbookId }),
+    })),
   upload: async (
     projectId: string,
     file: File,

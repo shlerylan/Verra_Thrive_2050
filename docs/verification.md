@@ -1,5 +1,11 @@
 # Scaffold verification
 
+## Agricultural Leakage pilot: 31 October 2026
+
+The new VM0047 v1.0 / VMD0054 v1.0 single-commodity pilot downloads a dedicated template, rejects missing or inconsistent cells, and calculates an annual arithmetic preview from a stored, project-owned workbook. It reports the source checksum and explicitly leaves formal `/runs` unavailable. The local VCS5511 Leakage workbook was inspected for equation mapping but is not shipped as a fixture or accepted as verified evidence; see [pilot scope](leakage-pilot.md).
+
+Verification: 46 applicable backend tests passed, including isolated PostgreSQL upload, preview and cross-project checks; 7 frontend component tests passed; TypeScript checking, production Vite build and `git diff --check` passed. The generated Leakage XLSX opened, was filled and saved with openpyxl, and its parsed preview returned zero for the synthetic high-mitigation example. The pure calculator was also checked against the rounded year-five example in VMD0054 Appendix 1. The legacy test that mutates the shared public PostgreSQL schema remains excluded. Browser visual testing and Docker Compose startup have not been run in this milestone.
+
 ## Versioned intake template: 26 October 2026
 
 The Workbook Intake utility now serves a versioned XLSX template. Completed-template uploads check the exact module and template version, Inputs sheet, required headers, at least one field/value row, formula absence, and a 200-row limit. Rejected uploads return cell locations and leave no stored file. Accepted uploads retain their validation status and template version in PostgreSQL; migration `0003` preserves earlier records with null template fields.

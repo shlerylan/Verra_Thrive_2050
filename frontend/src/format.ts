@@ -9,5 +9,6 @@ export const key = (id: string, version: string) =>
 export const availability = {
   unavailable: "Unavailable",
   file_intake_only: "File intake only",
+  prototype_calculation: "Calculation preview",
   calculation_ready: "Ready for calculation",
 };

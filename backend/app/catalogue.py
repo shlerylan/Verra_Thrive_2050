@@ -33,7 +33,7 @@ class ModuleDefinition(BaseModel):
     name: str
     description: str
     kind: Literal["utility", "calculation"]
-    availability: Literal["unavailable", "file_intake_only", "calculation_ready"]
+    availability: Literal["unavailable", "file_intake_only", "prototype_calculation", "calculation_ready"]
     availability_reason: str
     compatible_methodologies: tuple[MethodologyReference, ...] = ()
     methodology_independent: bool = False
@@ -55,7 +55,11 @@ class ModuleDefinition(BaseModel):
 
 
 # No official identifiers/versions or requirements have been supplied for review.
-METHODOLOGIES: tuple[MethodologyVersion, ...] = ()
+METHODOLOGIES: tuple[MethodologyVersion, ...] = (
+    MethodologyVersion(identifier="VM0047", version="1.0",
+                       name="Afforestation, Reforestation and Revegetation",
+                       note="Official version reference. Project applicability and full calculation support remain under review."),
+)
 MODULES: tuple[ModuleDefinition, ...] = (
     ModuleDefinition(
         identifier="workbook-intake", version="1.0.0", name="Workbook Intake",
@@ -67,6 +71,19 @@ MODULES: tuple[ModuleDefinition, ...] = (
                     FileRole(identifier="input-template", name="Completed intake template",
                              description="The downloadable generic input template; layout and entries are checked on upload.", required=False)),
         template_version="1.0.0",
+    ),
+    ModuleDefinition(
+        identifier="leakage-single-commodity", version="0.1.0",
+        name="VMD0054 Agricultural Leakage Pilot",
+        description="One agricultural commodity, one project instance, and up to five monitoring years. Arithmetic preview only.",
+        kind="calculation", availability="prototype_calculation",
+        availability_reason="Input evidence, applicability, intensification effects and full VCS requirements need review before a verified calculation is available.",
+        compatible_methodologies=(MethodologyReference(identifier="VM0047", version="1.0"),),
+        file_roles=(FileRole(identifier="leakage-input-template", name="Completed Leakage template",
+                             description="Versioned inputs for the single-commodity calculation preview.", required=True),),
+        adapter_id="leakage-inputs-v0.1", input_contract_version="0.1.0",
+        expected_output_description="Annual leakage arithmetic preview with source workbook checksum and limitations.",
+        template_version="0.2.0",
     ),
 )
 

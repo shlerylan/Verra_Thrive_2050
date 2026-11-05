@@ -11,6 +11,7 @@ from app.core.errors import AppError
 from app.models.workbook import Workbook
 from app.models.project import LEGACY_PROJECT_ID
 from app.services.templates import FILE_ROLE, MODULE_ID, MODULE_VERSION, TEMPLATE_VERSION, validate_intake_template
+from app.services import leakage
 
 CONTENT_NS = "{http://schemas.openxmlformats.org/package/2006/content-types}"
 SHEET_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
@@ -105,13 +106,17 @@ def store_workbook(source, filename: str | None, session: Session, settings: Set
                 digest.update(chunk)
                 target.write(chunk)
         validate_package(path, settings)
-        is_template = (module_id, module_version, file_role) == (MODULE_ID, MODULE_VERSION, FILE_ROLE)
-        if is_template:
+        is_intake = (module_id, module_version, file_role) == (MODULE_ID, MODULE_VERSION, FILE_ROLE)
+        is_leakage = (module_id, module_version, file_role) == (leakage.MODULE_ID, leakage.MODULE_VERSION, leakage.FILE_ROLE)
+        if is_intake:
             validate_intake_template(path)
+        if is_leakage:
+            leakage.parse_leakage_template(path)
+        template_version = TEMPLATE_VERSION if is_intake else leakage.leakage_template_version(path) if is_leakage else None
         record = Workbook(original_filename=name, byte_size=size, sha256=digest.hexdigest(), stored_file_id=stored_id,
                           project_id=project_id, module_id=module_id, module_version=module_version, file_role=file_role,
-                          template_version=TEMPLATE_VERSION if is_template else None,
-                          template_validation="passed" if is_template else None)
+                          template_version=template_version,
+                          template_validation="passed" if template_version else None)
         session.add(record)
         session.flush()
         session.refresh(record)

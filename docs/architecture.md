@@ -7,13 +7,15 @@ flowchart LR
   Project[Create or select project] --> Method[Exact methodology version or unassigned]
   Method --> Module[Compatible module version or generic intake]
   Module --> Roles[Inspect defined file roles]
-  Roles --> Upload[Upload and inspect metadata]
-  Upload -. Future: unavailable .-> Review[Extract and confirm domain inputs]
-  Review -. Future: unavailable .-> Run[Calculate from confirmed input contract]
-  Run -. Future: unavailable .-> Results[Traceable results and downloads]
+  Roles --> Template[Download module template]
+  Template --> Upload[Upload and validate inputs]
+  Upload --> Preview[Leakage arithmetic preview when supported]
+  Preview -. Future .-> Review[Verify evidence and eligibility]
+  Review -. Future .-> Run[Persist formal calculation run]
+  Run -. Future .-> Results[Verified report]
 ```
 
-Only the solid-arrow intake workflow is available. Basic ZIP/XLSX checks are not domain-input validation. No methodology versions have been verified for configuration; unassigned projects and the Workbook Intake utility are the initial working path.
+The solid-arrow workflow is available for the limited VMD0054 single-commodity pilot. Generic intake only stores and checks files. VM0047 v1.0 is listed as an unreviewed methodology reference; assigning it does not establish project eligibility. See [pilot scope](leakage-pilot.md).
 
 ## Boundaries
 
@@ -31,28 +33,28 @@ This is a modular monolith: one API process and one database, with a small stati
 | Logical boundary | Current implementation |
 | --- | --- |
 | Project management | `services/projects.py`, project schemas/model and scoped routes |
-| Methodology/version catalogue | Explicit `METHODOLOGIES` tuple in `catalogue.py`; initially empty |
+| Methodology/version catalogue | Explicit `METHODOLOGIES` tuple in `catalogue.py`; VM0047 v1.0 is listed as unreviewed |
 | Module definitions | `MODULES` tuple with stable ID/version, kind, availability, exact compatibility and file roles |
 | File storage and metadata | Existing streaming workbook service plus non-null project ownership |
-| Workbook-format adapters | The Workbook Intake template has a versioned layout reader; carbon-workbook adapters are not implemented |
-| Input validation | Basic package checks for every upload; template version, layout, and required-cell checks for the completed intake template; carbon domain validation is not performed |
-| Calculation execution | Not implemented; HTTP boundary rejects requests, no execution engine |
-| Results/reporting | Not implemented; no unused result/run tables or fabricated records |
+| Workbook-format adapters | Versioned layout readers for generic intake and the Leakage pilot; arbitrary project workbooks are not calculation inputs |
+| Input validation | Basic package checks for every upload; typed cells, years, units and bounds for the Leakage pilot; source evidence is not verified |
+| Calculation execution | Pure single-commodity Leakage preview in `services/leakage.py`; formal `/runs` remains unavailable |
+| Results/reporting | Preview JSON and downloadable text summary; no persisted run or verified report |
 
 A **project** identifies a real-world undertaking; the legacy collection is explicitly only a preservation container with ownership yet to be established. A **methodology version** identifies an exact ruleset, not a project or a support claim. A **module version** is a particular capability and compatibility declaration, not a shared module name interpreted as identical rules. A **file adapter** will read an explicitly supported layout into a versioned input contract, independently of which project supplies it. A **run** will bind these exact identities to confirmed input data and implementation versions; none is created yet.
 
-The registry is ordinary reviewed Python data. It never imports user-supplied code or stores formulas in the database. Availability distinguishes unavailable, intake-only and calculation-ready. The current definition validator rejects calculation-ready registrations because execution does not exist. Methodology-independent definitions are permitted only for utilities. Catalogue entries can be labelled unreviewed; catalogue review alone never activates a calculation.
+The registry is ordinary Python data. It never imports user-supplied code or stores formulas in the database. Availability distinguishes unavailable, intake-only, prototype preview and calculation-ready. The current definition validator rejects calculation-ready registrations because full execution does not exist. Methodology-independent definitions are permitted only for utilities. Catalogue entries can be labelled unreviewed; catalogue listing alone never establishes VCS compliance.
 
 React supports reusable forms, status messages, tables, and metadata panels that can later support comparison interfaces. TypeScript checks frontend data use at build time. Types alone do not validate network responses: Zod validates the API payload at runtime, and Pydantic validates backend responses. Changes to these parallel contracts should be reviewed together; generated client types can be considered once the API stabilizes.
 
-The browser has real loading, unavailable, empty, success, and error states. API status checks process health; database failures appear as actionable library/upload errors. Metadata is fetched from its own endpoint. Pagination limits metadata queries. No results, metrics, or methodology claims are fabricated.
+The browser has real loading, unavailable, empty, success, and error states. API status checks process health; database failures appear as actionable library/upload errors. Metadata is fetched from its own endpoint. Pagination limits metadata queries. Leakage preview results are clearly labelled and bound to a stored source checksum.
 
 `App.tsx` owns project selection; `Workspace.tsx` owns the selected project's methodology, module, file list and metadata. The workspace is keyed by project UUID so file/metadata state is discarded when switching projects. Responses from a previous project's assignment cannot replace the newly selected project. All file API requests carry the project ID. The API rechecks ownership rather than trusting that client context.
 
 ## Upload lifecycle
 
 1. Limit the raw HTTP request before multipart parsing can spool unlimited data. Starlette may temporarily spool accepted multipart data to the operating-system temporary directory.
-2. Resolve and lock the owning project, validate any exact module/version/file-role association and compatibility, then validate the original filename; generate a UUID for private storage independent of the name. Generic intake requires no module association. Defined roles describe only their code-configured module version. The completed intake template role checks the versioned Inputs layout before the metadata commit and returns cell-level errors when invalid.
+2. Resolve and lock the owning project, validate any exact module/version/file-role association and compatibility, then validate the original filename; generate a UUID for private storage independent of the name. Generic intake requires no module association. Defined roles describe only their code-configured module version. Completed template roles check the versioned Inputs layout before the metadata commit and return cell-level errors when invalid. The Leakage role also checks numeric inputs and year sequence.
 3. Stream bytes into storage in 64 KiB chunks, enforcing size and computing SHA-256.
 4. Inspect the ZIP in place without extraction. Bound member count, total expanded size, and per-member compression ratio; stream every member to verify CRC and actual sizes. Reject encryption, traversal, symlinks, duplicate members, malformed archives, known macro and embedded active content, and invalid required XML parts. Parse required XML with defusedxml to reject entity-based attacks.
 5. Flush and refresh the new metadata, then commit. Return `stored` only after commit. Handled failures roll back and remove the new file, including failures during database flush/commit. Separate uploads always have separate records/files.
@@ -73,7 +75,7 @@ The filesystem and database are not one atomic resource. Ordinary failures are c
 
 ## Future work
 
-Calculation logic should eventually be pure, independently tested modules, separate from HTTP handlers, Excel-reading adapters, and persistence. Start only after a reviewer supplies an explicit methodology and trusted input/output fixtures. Preserve provenance, units, and rounding rules when that work begins. No such calculations are included here.
+The pilot calculation is pure and separate from HTTP handlers, Excel-reading adapters, and persistence. Before formal execution, review its exact applicability and input evidence against trusted project fixtures, add unsupported commodity and project cases, and define immutable run records with provenance, units, rounding and verification status.
 
 ### Adding a future module
 
