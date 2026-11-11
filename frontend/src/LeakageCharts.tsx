@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { LeakagePreview } from "./api";
+import { LeakageScenario } from "./LeakageScenario";
 
 const number = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 const fmt = (value: number) => number.format(value);
@@ -48,11 +49,11 @@ function ProductionChart({ years, unit, selectedYear }: {
   </figure>;
 }
 
-type AreaDensity = { name: string; color: string; area: number | null; monitored: number };
+type AreaDensity = { name: string; color: string; area: number | null; density: number | null; monitored: number };
 
 function AreaDensityChart({ areas, unit, year }: { areas: AreaDensity[]; unit: string; year: number }) {
   const measured = areas.flatMap((entry) =>
-    entry.area && entry.area > 0 ? [{ ...entry, hectares: entry.area, density: entry.monitored / entry.area }] : [],
+    entry.area && entry.area > 0 && entry.density !== null ? [{ ...entry, hectares: entry.area, density: entry.density }] : [],
   );
   if (measured.length === 0) {
     return <p>Enter both land areas in the Excel template to compare production density.</p>;
@@ -103,20 +104,14 @@ function AreaDensityChart({ areas, unit, year }: { areas: AreaDensity[]; unit: s
   );
 }
 
-export function LeakageCharts({ preview }: { preview: LeakagePreview }) {
+export function LeakageCharts({ projectId, preview }: { projectId: string; preview: LeakagePreview }) {
   const [index, setIndex] = useState(0);
-  const [override, setOverride] = useState<number | null>(null);
   const { annual_results: years, production_unit: unit } = preview;
   const row = years[index];
   if (!row) return null;
-  const selected = override ?? row.monitored_mitigation_production;
-  const breakEven = row.foregone_production + row.baseline_mitigation_production;
-  const max = Math.max(1, row.monitored_mitigation_production, breakEven) * 1.25;
-  const areaAt = (value: number) => Math.max(breakEven - value, 0) * row.new_land_per_production_unit;
-  const emissionsAt = (value: number) => areaAt(value) * row.carbon_stock_change_t_c_per_ha * 44 / 12;
   const areas = [
-    { name: "Project area", color: productionSeries[0].color, area: preview.project_area_ha, monitored: row.monitored_project_production, baseline: row.baseline_project_production },
-    { name: "Leakage mitigation area", color: productionSeries[2].color, area: preview.mitigation_area_ha, monitored: row.monitored_mitigation_production, baseline: row.baseline_mitigation_production },
+    { name: "Project area", color: productionSeries[0].color, area: preview.project_area_ha, density: row.monitored_project_density, baselineDensity: row.baseline_project_density, monitored: row.monitored_project_production, baseline: row.baseline_project_production },
+    { name: "Leakage mitigation area", color: productionSeries[2].color, area: preview.mitigation_area_ha, density: row.monitored_mitigation_density, baselineDensity: row.baseline_mitigation_density, monitored: row.monitored_mitigation_production, baseline: row.baseline_mitigation_production },
   ];
 
   return <div className="reference-scenario">
@@ -127,14 +122,14 @@ export function LeakageCharts({ preview }: { preview: LeakagePreview }) {
       <ProductionChart years={years} unit={unit} selectedYear={row.year} />
       <section className="production-conclusion" aria-labelledby="coverage-title">
         <label htmlFor="visual-year">Monitoring year</label>
-        <select id="visual-year" value={index} onChange={(event) => { setIndex(Number(event.target.value)); setOverride(null); }}>
+        <select id="visual-year" value={index} onChange={(event) => { setIndex(Number(event.target.value)); }}>
           {years.map((item, i) => <option key={item.year} value={i}>{item.year}</option>)}
         </select>
         <div aria-live="polite">
           <h4 id="coverage-title">{row.foregone_production <= 0 ? "No project-area shortfall"
             : row.production_subject_to_leakage === 0 ? "Mitigation covers the shortfall" : "Mitigation leaves a shortfall"}</h4>
           <dl className="reference-inputs">
-            <div><dt>Project area below baseline</dt><dd>{fmt(Math.max(0, row.foregone_production))} {unit}</dd></div>
+            <div><dt>Project area below baseline</dt><dd>{fmt(row.project_shortfall)} {unit}</dd></div>
             <div><dt>Mitigation area vs. its baseline</dt><dd>{fmt(row.leakage_mitigation)} {unit}</dd></div>
             <div><dt>Remaining production subject to leakage</dt><dd>{fmt(row.production_subject_to_leakage)} {unit}</dd></div>
             <div><dt>Estimated leakage emissions</dt><dd>{fmt(row.leakage_t_co2e)} t CO₂e</dd></div>
@@ -157,19 +152,13 @@ export function LeakageCharts({ preview }: { preview: LeakagePreview }) {
           <div><dt>Area</dt><dd>{area.area ? fmt(area.area) + " ha" : "Not supplied"}</dd></div>
           <div><dt>Expected without project</dt><dd>{fmt(area.baseline)} {unit}</dd></div>
           <div><dt>Monitored count</dt><dd>{fmt(area.monitored)} {unit}</dd></div>
-          <div><dt>Expected density</dt><dd>{area.area ? fmt(area.baseline / area.area) + " " + unit + "/ha" : "Unavailable"}</dd></div>
-          <div><dt>Monitored density</dt><dd>{area.area ? fmt(area.monitored / area.area) + " " + unit + "/ha" : "Unavailable"}</dd></div>
+          <div><dt>Expected density</dt><dd>{area.baselineDensity !== null ? fmt(area.baselineDensity) + " " + unit + "/ha" : "Unavailable"}</dd></div>
+          <div><dt>Monitored density</dt><dd>{area.density !== null ? fmt(area.density) + " " + unit + "/ha" : "Unavailable"}</dd></div>
         </dl>
       </section>)}
     </div>
-    <h3>What if mitigation production changed?</h3>
-    <label htmlFor="visual-mitigation">Mitigation total: {fmt(selected)} {unit}</label>
-    <input id="visual-mitigation" type="range" min={0} max={max} step="any" value={selected}
-      onChange={(event) => setOverride(event.target.valueAsNumber)} />
-    <div className="entry-options"><button type="button" className="secondary" onClick={() => setOverride(null)}>Reset to uploaded total</button></div>
-    <p><strong>{fmt(emissionsAt(selected))} t CO₂e</strong> · {fmt(areaAt(selected))} ha of estimated new land.</p>
-    <p>{breakEven > 0 && row.new_land_per_production_unit > 0 && row.carbon_stock_change_t_c_per_ha > 0
-      ? `Modelled leakage reaches zero at approximately ${fmt(breakEven)} ${unit}.`
-      : "Modelled leakage is zero throughout this scenario."}</p>
+    <LeakageScenario key={`${projectId}:${preview.source_workbook_id}:${preview.source_sha256}:${row.year}`}
+      projectId={projectId} workbookId={preview.source_workbook_id}
+      sourceSha256={preview.source_sha256} row={row} unit={unit} />
   </div>;
 }

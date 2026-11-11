@@ -3,7 +3,7 @@
 This is a bounded calculation preview, not a verified VCS result. It excludes
 fuelwood, multiple commodities, grouped instances, and evidence assessment.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from zipfile import ZipFile
@@ -290,14 +290,25 @@ def calculate_leakage(inputs: LeakageInputs) -> dict:
         subject_to_leakage = max(foregone - mitigation, Decimal(0))
         new_land_area = subject_to_leakage * inputs.increased_supply_share * inputs.new_land_share / yield_per_ha
         leakage = new_land_area * carbon_stock_change * CO2_PER_C
+        break_even = foregone + baseline_mitigation
+        scenario_max = max(Decimal(1), omp, break_even) * Decimal('1.25')
+        zero_threshold = (break_even if break_even > 0 and inputs.increased_supply_share > 0
+                          and inputs.new_land_share > 0 and carbon_stock_change > 0 else None)
         total_leakage += leakage
         years.append({
             'year': year, 't': t,
+            'scenario_max_mitigation_production': float(scenario_max),
+            'zero_leakage_mitigation_production': float(zero_threshold) if zero_threshold is not None else None,
             'monitored_project_production': float(mp),
             'monitored_mitigation_production': float(omp),
             'new_land_per_production_unit': float(inputs.increased_supply_share * inputs.new_land_share / yield_per_ha),
             'baseline_project_production': float(baseline_project),
             'foregone_production': float(foregone),
+            'project_shortfall': float(max(foregone, Decimal(0))),
+            'baseline_project_density': float(baseline_project / inputs.project_area) if inputs.project_area else None,
+            'monitored_project_density': float(mp / inputs.project_area) if inputs.project_area else None,
+            'baseline_mitigation_density': float(baseline_mitigation / inputs.mitigation_area) if inputs.mitigation_area else None,
+            'monitored_mitigation_density': float(omp / inputs.mitigation_area) if inputs.mitigation_area else None,
             'baseline_mitigation_production': float(baseline_mitigation),
             'leakage_mitigation': float(mitigation),
             'production_subject_to_leakage': float(subject_to_leakage),
@@ -325,3 +336,20 @@ def calculate_leakage(inputs: LeakageInputs) -> dict:
                 'Historical production is limited to three complete calendar years; longer crop rotations are outside this pilot.',
                 'The displayed total is an arithmetic sum of year-specific previews; VMD0054 calls LK_t cumulative and its reporting interpretation needs review.',
             ]}
+
+
+def calculate_leakage_scenario(inputs: LeakageInputs, year: int, mitigation_production: Decimal) -> dict:
+    """Override one monitored total without changing the stored inputs or equations."""
+    original = calculate_leakage(inputs)
+    baseline = next((row for row in original['annual_results'] if row['year'] == year), None)
+    if baseline is None:
+        raise AppError(422, 'invalid_scenario_year', 'Choose a monitoring year present in the stored workbook.')
+    # Match the maximum advertised to the browser, including its JSON float precision.
+    maximum = Decimal(str(baseline['scenario_max_mitigation_production']))
+    if not mitigation_production.is_finite() or not Decimal(0) <= mitigation_production <= maximum:
+        raise AppError(422, 'invalid_scenario_production',
+                       f'Mitigation production must be between 0 and {maximum}.')
+    monitored = tuple((y, mp, mitigation_production if y == year else omp, yield_per_ha)
+                      for y, mp, omp, yield_per_ha in inputs.monitored)
+    scenario = replace(inputs, monitored=monitored)
+    return next(row for row in calculate_leakage(scenario)['annual_results'] if row['year'] == year)

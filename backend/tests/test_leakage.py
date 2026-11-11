@@ -236,3 +236,60 @@ def test_new_table_rejects_changed_columns_formulas_and_extra_rows(tmp_path, rep
     with pytest.raises(AppError) as error:
         parse_leakage_template(path)
     assert all(item['cell'].startswith('Monitoring!') for item in error.value.details)
+
+
+@pytest.mark.parametrize('example', [False, True])
+def test_scenario_uses_the_same_engine_and_preserves_stored_inputs(tmp_path, example, monkeypatch):
+    from dataclasses import replace
+    from app.services import leakage
+
+    path = tmp_path / 'scenario.xlsx'
+    path.write_bytes(leakage_template(example=example))
+    inputs = parse_leakage_template(path)
+    original_bytes = path.read_bytes()
+    baseline = calculate_leakage(inputs)
+    for source_row in baseline['annual_results']:
+        year = source_row['year']
+        original_total = next(omp for y, mp, omp, yield_per_ha in inputs.monitored if y == year)
+        assert leakage.calculate_leakage_scenario(inputs, year, original_total) == source_row
+        for total in (Decimal(0), Decimal('100.123456789'), original_total):
+            overridden = replace(inputs, monitored=tuple(
+                (y, mp, total if y == year else omp, yield_per_ha)
+                for y, mp, omp, yield_per_ha in inputs.monitored))
+            expected = next(row for row in calculate_leakage(overridden)['annual_results'] if row['year'] == year)
+            assert leakage.calculate_leakage_scenario(inputs, year, total) == expected
+    assert path.read_bytes() == original_bytes
+    assert calculate_leakage(inputs) == baseline
+
+    calls = []
+    engine = leakage.calculate_leakage
+    def tracked(value):
+        calls.append(value)
+        return engine(value)
+    monkeypatch.setattr(leakage, 'calculate_leakage', tracked)
+    leakage.calculate_leakage_scenario(inputs, 2023, Decimal(0))
+    assert len(calls) == 2  # Original range metadata, then the overridden inputs.
+    assert calls[0] == inputs and calls[1].monitored[0][2] == 0
+
+
+def test_scenario_bounds_and_zero_emissions_cases(tmp_path):
+    from dataclasses import replace
+    from app.services.leakage import calculate_leakage_scenario
+    path = tmp_path / 'scenario.xlsx'
+    path.write_bytes(leakage_template(example=True))
+    inputs = parse_leakage_template(path)
+    for invalid in (Decimal(-1), Decimal('NaN'), Decimal('Infinity'), Decimal(10000)):
+        with pytest.raises(AppError) as error:
+            calculate_leakage_scenario(inputs, 2023, invalid)
+        assert error.value.code == 'invalid_scenario_production'
+    with pytest.raises(AppError) as error:
+        calculate_leakage_scenario(inputs, 2040, Decimal(0))
+    assert error.value.code == 'invalid_scenario_year'
+    row = calculate_leakage(inputs)['annual_results'][0]
+    assert calculate_leakage_scenario(inputs, 2023, Decimal(str(row['scenario_max_mitigation_production'])))['leakage_t_co2e'] == 0
+    for overrides in ({'increased_supply_share': Decimal(0)},
+                      {'new_land_share': Decimal(0)},
+                      {'biomass_carbon_loss': Decimal(0), 'reference_soc': Decimal(0)}):
+        row = calculate_leakage_scenario(replace(inputs, **overrides), 2023, Decimal(0))
+        assert row['leakage_t_co2e'] == 0
+        assert row['zero_leakage_mitigation_production'] is None

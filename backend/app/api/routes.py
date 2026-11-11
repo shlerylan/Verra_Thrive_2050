@@ -13,7 +13,7 @@ from app import catalogue
 from app.services.workbooks import store_workbook
 from app.services.templates import MODULE_ID, MODULE_VERSION, workbook_intake_template
 from app.services import leakage
-from app.schemas.leakage import LeakagePreview, LeakagePreviewRequest
+from app.schemas.leakage import LeakagePreview, LeakagePreviewRequest, LeakageScenario, LeakageScenarioRequest
 
 router = APIRouter(prefix="/api")
 
@@ -159,12 +159,11 @@ def project_workbook_metadata(project_id: UUID, workbook_id: UUID, session: Sess
     return record
 
 
-@router.post("/projects/{project_id}/leakage/preview", response_model=LeakagePreview)
-def leakage_preview(project_id: UUID, data: LeakagePreviewRequest, request: Request,
-                    session: Session = Depends(database_session)):
+def leakage_source(project_id: UUID, workbook_id: UUID, request: Request, session: Session):
+    """Resolve a stored, validated source with the same checks for both workflows."""
     project = get_project(session, project_id)
     catalogue.require_module(project, leakage.MODULE_ID, leakage.MODULE_VERSION)
-    record = session.scalar(select(Workbook).where(Workbook.id == data.workbook_id,
+    record = session.scalar(select(Workbook).where(Workbook.id == workbook_id,
                                                    Workbook.project_id == project_id))
     if record is None:
         raise AppError(404, "not_found", "Workbook not found in this project.")
@@ -176,8 +175,23 @@ def leakage_preview(project_id: UUID, data: LeakagePreviewRequest, request: Requ
     if not path.is_file():
         raise AppError(409, "source_missing", "The stored source workbook is unavailable.")
     inputs = leakage.parse_leakage_template(path)
+    return record, inputs
+
+
+@router.post("/projects/{project_id}/leakage/preview", response_model=LeakagePreview)
+def leakage_preview(project_id: UUID, data: LeakagePreviewRequest, request: Request,
+                    session: Session = Depends(database_session)):
+    record, inputs = leakage_source(project_id, data.workbook_id, request, session)
     return {**leakage.calculate_leakage(inputs), "source_workbook_id": str(record.id),
             "source_sha256": record.sha256}
+
+
+@router.post("/projects/{project_id}/leakage/scenario", response_model=LeakageScenario)
+def leakage_scenario(project_id: UUID, data: LeakageScenarioRequest, request: Request,
+                     session: Session = Depends(database_session)):
+    record, inputs = leakage_source(project_id, data.workbook_id, request, session)
+    return {"result": leakage.calculate_leakage_scenario(inputs, data.year, data.mitigation_production),
+            "source_workbook_id": str(record.id), "source_sha256": record.sha256}
 
 
 @router.post("/projects/{project_id}/inputs/review", status_code=409)

@@ -81,12 +81,23 @@ export type Catalogue = z.infer<typeof catalogue>;
 
 const leakageYear = z.object({
   year: z.number().int(), t: z.number().int(),
+  scenario_max_mitigation_production: z.number().finite().positive(),
+  zero_leakage_mitigation_production: z.number().finite().nullable(),
   monitored_project_production: z.number(), monitored_mitigation_production: z.number(),
   new_land_per_production_unit: z.number(),
+  project_shortfall: z.number(),
+  baseline_project_density: z.number().nullable(), monitored_project_density: z.number().nullable(),
+  baseline_mitigation_density: z.number().nullable(), monitored_mitigation_density: z.number().nullable(),
   baseline_project_production: z.number(), foregone_production: z.number(),
   baseline_mitigation_production: z.number(), leakage_mitigation: z.number(),
   production_subject_to_leakage: z.number(), new_land_area_ha: z.number(),
   carbon_stock_change_t_c_per_ha: z.number(), leakage_t_co2e: z.number(),
+});
+export type LeakageYear = z.infer<typeof leakageYear>;
+const leakageScenario = z.object({
+  result: leakageYear,
+  source_workbook_id: z.string().uuid(),
+  source_sha256: z.string().regex(/^[a-f0-9]{64}$/),
 });
 const leakagePreview = z.object({
   status: z.literal("preview"), methodology: z.string(), rule_module: z.string(),
@@ -102,7 +113,9 @@ export type LeakagePreview = z.infer<typeof leakagePreview>;
 async function request(path: string, init?: RequestInit): Promise<unknown> {
   const response = await fetch(`/api${path}`, {
     ...init,
-    signal: AbortSignal.timeout(60000),
+    signal: init?.signal
+      ? AbortSignal.any([init.signal, AbortSignal.timeout(60000)])
+      : AbortSignal.timeout(60000),
   });
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
@@ -171,6 +184,13 @@ export const api = {
     leakagePreview.parse(await request(`/projects/${projectId}/leakage/preview`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workbook_id: workbookId }),
+    })),
+  scenarioLeakage: async (projectId: string, workbookId: string, year: number,
+    mitigationProduction: number, signal?: AbortSignal) =>
+    leakageScenario.parse(await request(`/projects/${projectId}/leakage/scenario`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workbook_id: workbookId, year, mitigation_production: mitigationProduction }),
+      signal,
     })),
   upload: async (
     projectId: string,

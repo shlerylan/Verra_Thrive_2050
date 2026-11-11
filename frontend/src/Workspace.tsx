@@ -706,7 +706,7 @@ export function Workspace({
         {!preview && <p>{uploaded?.original_filename} has been stored. {uploaded?.template_validation === "passed" ? "Template checks passed." : "Basic Excel file checks passed."} No calculation result was produced for this file.</p>}
         {preview && (
           <div className="preview-report">
-            <LeakageCharts key={preview.source_workbook_id} preview={preview} />
+            <LeakageCharts key={preview.source_workbook_id} projectId={project.id} preview={preview} />
             <p><strong>{preview.commodity}</strong> / {preview.methodology} / {preview.rule_module}</p>
             <p><strong>Sum of annual preview values: {preview.total_leakage_t_co2e.toLocaleString("en-GB", { maximumFractionDigits: 3 })} t CO2e</strong></p>
             <div className="table-scroll"><table>

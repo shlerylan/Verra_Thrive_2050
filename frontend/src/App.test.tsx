@@ -20,6 +20,7 @@ vi.mock("./api", () => ({
     upload: vi.fn(),
     downloadTemplate: vi.fn(),
     previewLeakage: vi.fn(),
+    scenarioLeakage: vi.fn(),
   },
 }));
 
@@ -141,9 +142,12 @@ function setupPilot() {
     status: "preview", methodology: "VM0047 v1.0", rule_module: "VMD0054 v1.0",
     scope: "One commodity", commodity: "Cattle", production_unit: "head",
     historical_production: [], project_area_ha: 16940.6, mitigation_area_ha: 133089.46, reference_replay: false,
-    annual_results: [{ year: 2023, t: 1, monitored_project_production: 0,
+    annual_results: [{ year: 2023, t: 1, scenario_max_mitigation_production: 51003.75,
+      zero_leakage_mitigation_production: 30336.24, monitored_project_production: 0,
       monitored_mitigation_production: 40803, new_land_per_production_unit: 0.856, baseline_project_production: 6086.45,
-      foregone_production: 6086.45, baseline_mitigation_production: 24249.79,
+      foregone_production: 6086.45, project_shortfall: 6086.45,
+      baseline_project_density: 0.36, monitored_project_density: 0,
+      baseline_mitigation_density: 0.18, monitored_mitigation_density: 0.31, baseline_mitigation_production: 24249.79,
       leakage_mitigation: 16553.21, production_subject_to_leakage: 0,
       new_land_area_ha: 0, carbon_stock_change_t_c_per_ha: 39.2552, leakage_t_co2e: 0 }],
     total_leakage_t_co2e: 0, limitations: ["Evidence not verified."],

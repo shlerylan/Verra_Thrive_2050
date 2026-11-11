@@ -71,3 +71,24 @@ test("the reserved project ID is not accepted as a workbook ID", async () => {
   serve({ ...stored, id: legacy.id });
   await expect(api.metadata(legacy.id, legacy.id)).rejects.toThrow();
 });
+
+test("scenario requests send only stored source and changed inputs, and propagate cancellation", async () => {
+  const controller = new AbortController();
+  const fetchMock = vi.fn((_path: string, init: RequestInit) => new Promise((_resolve, reject) => {
+    init.signal!.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+  }));
+  vi.stubGlobal("fetch", fetchMock);
+  const pending = api.scenarioLeakage(legacy.id, stored.id, 2023, 250.123, controller.signal);
+  const rejected = expect(pending).rejects.toThrow("Aborted");
+  const [path, init] = fetchMock.mock.calls[0];
+  expect(path).toBe(`/api/projects/${legacy.id}/leakage/scenario`);
+  expect(init.method).toBe("POST");
+  expect(init.headers).toEqual({ "Content-Type": "application/json" });
+  expect(JSON.parse(init.body as string)).toEqual({
+    workbook_id: stored.id, year: 2023, mitigation_production: 250.123,
+  });
+  expect(init.signal!.aborted).toBe(false);
+  controller.abort();
+  expect(init.signal!.aborted).toBe(true);
+  await rejected;
+});
